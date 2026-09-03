@@ -628,7 +628,6 @@ function App() {
                   {transform.type === "rotate" && (
                     <g className="pivot-marker">
                       <circle cx={transform.pivot.x} cy={transform.pivot.y} r="0.38" />
-                      <text x={transform.pivot.x + 0.55} y={transform.pivot.y - 0.55}>O</text>
                     </g>
                   )}
                 </>
