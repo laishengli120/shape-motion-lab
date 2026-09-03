@@ -115,7 +115,7 @@ const TASKS: TaskPreset[] = [
     detail: "关于第 16 格竖轴对称",
     emoji: "🏠",
     shape: PRESETS[4],
-    transform: { type: "reflect", axis: "vertical", offset: 16 },
+    transform: { type: "reflect", axis: "vertical", offset: GRID_WIDTH / 2 },
   },
 ]
 
@@ -138,7 +138,7 @@ function createOperationTransform(nextOperation: Operation, points: Point[]): Tr
     return { type: "rotate", angle: 0, direction: "clockwise", pivot: points[0] }
   }
 
-  return { type: "reflect", axis: "vertical", offset: 16 }
+  return { type: "reflect", axis: "vertical", offset: GRID_WIDTH / 2 }
 }
 
 function getCanvasPoint(svg: SVGSVGElement, clientX: number, clientY: number): Point {
@@ -215,9 +215,15 @@ function App() {
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([])
   const [pointPickMode, setPointPickMode] = useState<PointPickMode>(null)
   const [showTaskMenu, setShowTaskMenu] = useState(false)
+  const [controlsCollapsed, setControlsCollapsed] = useState(false)
+  const [showSymmetry, setShowSymmetry] = useState(true)
   const [notice, setNotice] = useState("点一点图形，或者试试右侧的变换按钮")
 
   const transformedPoints = useMemo(() => applyTransform(operationBasePoints, transform), [operationBasePoints, transform])
+  const drawingMirrorPoints = useMemo(
+    () => (operation === "reflect" && transform.type === "reflect" ? applyTransform(drawingPoints, transform) : []),
+    [drawingPoints, operation, transform],
+  )
   const hasOutOfBoundsPoint = transformedPoints.some(
     (point) => point.x < 0 || point.x > GRID_WIDTH || point.y < 0 || point.y > GRID_HEIGHT,
   )
@@ -262,13 +268,16 @@ function App() {
     if (nextOperation === "rotate" && nextOperation !== operation) {
       setNotice("旋转模式已开启：确认 O 点后，只能绕中心旋转图形")
     }
+    if (nextOperation === "reflect" && nextOperation !== operation) {
+      setNotice("轴对称模式已开启：中间是对称轴，在一侧画图即可")
+    }
   }
 
   function startDrawing() {
     setIsDrawing(true)
     setDrawingPoints([])
     setPointPickMode(null)
-    setNotice("在格点上依次点出图形，点回第一个点即可闭合")
+    setNotice(operation === "reflect" ? "沿中间对称轴的一侧点格点，另一侧会显示镜像" : "在格点上依次点出图形，点回第一个点即可闭合")
   }
 
   function finishDrawing(points = drawingPoints) {
@@ -288,10 +297,9 @@ function App() {
     setDrawingPoints(points)
     setIsDrawing(false)
     setOperationBasePoints(points)
-    setTransform(createDefaultTransform())
-    setOperation("translate")
+    setTransform(createOperationTransform(operation, points))
     setHistory([])
-    setNotice("图形完成啦！拖动它，或选择一种变换方式")
+    setNotice(operation === "reflect" ? "图形完成啦！另一侧已经显示对称图形" : "图形完成啦！拖动它，或选择一种变换方式")
   }
 
   function addDrawingPoint(point: Point) {
@@ -349,6 +357,11 @@ function App() {
       updateTransform({ ...transform, offset })
       setPointPickMode(null)
       setNotice(`对称轴已设在第 ${offset} 格`)
+      return
+    }
+
+    if (operation === "reflect") {
+      setNotice("轴对称模式下请在中间轴的一侧画图，图形不能直接拖动")
       return
     }
 
@@ -494,6 +507,10 @@ function App() {
         </div>
 
         <div className="top-actions">
+          <button className="button button-soft" onClick={() => setControlsCollapsed((value) => !value)} aria-expanded={!controlsCollapsed}>
+            <span className="button-icon">☰</span>
+            {controlsCollapsed ? "展开配置" : "收起配置"}
+          </button>
           <div className="task-menu-wrap">
             <button className={`button button-soft ${showTaskMenu ? "is-active" : ""}`} onClick={() => setShowTaskMenu((value) => !value)}>
               <span className="button-icon">✦</span>
@@ -518,7 +535,7 @@ function App() {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className={`workspace ${controlsCollapsed ? "is-controls-collapsed" : ""}`}>
         <aside className="left-column">
           <section className="panel-card shapes-card">
             <div className="section-heading">
@@ -600,29 +617,32 @@ function App() {
               {!isDrawing && (
                 <>
                   <polygon className="original-shape" points={pointsToString(shape.points)} />
-                  <polygon
-                    className={`transformed-shape ${operation === "rotate" ? "is-rotating" : ""}`}
-                    points={pointsToString(transformedPoints)}
-                    fill={shape.color}
-                    onPointerDown={handleShapePointerDown}
-                  />
+                  {(operation !== "reflect" || showSymmetry) && (
+                    <polygon
+                      className={`transformed-shape ${operation === "rotate" ? "is-rotating" : ""}`}
+                      points={pointsToString(transformedPoints)}
+                      fill={shape.color}
+                      onPointerDown={handleShapePointerDown}
+                    />
+                  )}
                   {transform.type === "rotate" && (
                     <g className="pivot-marker">
                       <circle cx={transform.pivot.x} cy={transform.pivot.y} r="0.38" />
                       <text x={transform.pivot.x + 0.55} y={transform.pivot.y - 0.55}>O</text>
                     </g>
                   )}
-                  {transform.type === "reflect" && (
-                    <g className="reflect-axis">
-                      {transform.axis === "vertical" ? (
-                        <line x1={transform.offset} y1="0" x2={transform.offset} y2={GRID_HEIGHT} />
-                      ) : (
-                        <line x1="0" y1={transform.offset} x2={GRID_WIDTH} y2={transform.offset} />
-                      )}
-                      <text x={transform.axis === "vertical" ? transform.offset + 0.45 : 0.5} y={transform.axis === "vertical" ? 1 : transform.offset - 0.5}>对称轴</text>
-                    </g>
-                  )}
                 </>
+              )}
+
+              {transform.type === "reflect" && (
+                <g className="reflect-axis">
+                  {transform.axis === "vertical" ? (
+                    <line x1={transform.offset} y1="0" x2={transform.offset} y2={GRID_HEIGHT} />
+                  ) : (
+                    <line x1="0" y1={transform.offset} x2={GRID_WIDTH} y2={transform.offset} />
+                  )}
+                  <text x={transform.axis === "vertical" ? transform.offset + 0.45 : 0.5} y={transform.axis === "vertical" ? 1 : transform.offset - 0.5}>对称轴</text>
+                </g>
               )}
 
               {isDrawing && drawingPoints.length > 0 && (
@@ -632,6 +652,15 @@ function App() {
                   {drawingPoints.map((point, index) => (
                     <circle className={`drawing-point ${index === 0 ? "is-first" : ""}`} key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r="0.32" />
                   ))}
+                  {showSymmetry && drawingMirrorPoints.length > 0 && (
+                    <>
+                      <polyline className="drawing-line drawing-mirror-line" points={pointsToString(drawingMirrorPoints)} />
+                      {drawingMirrorPoints.length > 2 && <line className="drawing-line drawing-mirror-line" x1={drawingMirrorPoints.at(-1)?.x} y1={drawingMirrorPoints.at(-1)?.y} x2={drawingMirrorPoints[0].x} y2={drawingMirrorPoints[0].y} opacity="0.28" />}
+                      {drawingMirrorPoints.map((point, index) => (
+                        <circle className="drawing-point drawing-mirror-point" key={`mirror-${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r="0.28" />
+                      ))}
+                    </>
+                  )}
                 </>
               )}
             </svg>
@@ -740,22 +769,27 @@ function App() {
                 <div className="control-title-row">
                   <div>
                     <h3>选一面镜子</h3>
-                    <p>选择横轴或竖轴，再点格点定位</p>
+                    <p>对称轴固定在格子图正中间</p>
                   </div>
                   <span className="control-badge mint">◐</span>
                 </div>
                 <div className="direction-row">
-                  <button className={transform.axis === "vertical" ? "is-selected" : ""} onClick={() => updateTransform({ ...transform, axis: "vertical" })}>↕ 竖轴</button>
-                  <button className={transform.axis === "horizontal" ? "is-selected" : ""} onClick={() => updateTransform({ ...transform, axis: "horizontal" })}>↔ 横轴</button>
+                  <button className={transform.axis === "vertical" ? "is-selected" : ""} onClick={() => updateTransform({ ...transform, axis: "vertical", offset: GRID_WIDTH / 2 })}>↕ 中间竖轴</button>
+                  <button className={transform.axis === "horizontal" ? "is-selected" : ""} onClick={() => updateTransform({ ...transform, axis: "horizontal", offset: GRID_HEIGHT / 2 })}>↔ 中间横轴</button>
                 </div>
-                <div className="axis-input-row">
-                  <label>轴位置</label>
-                  <div className="number-input-wrap"><input aria-label="轴位置" type="number" min="0" max={transform.axis === "vertical" ? GRID_WIDTH : GRID_HEIGHT} value={transform.offset} onChange={(event) => updateTransform({ ...transform, offset: clamp(Number(event.target.value), 0, transform.axis === "vertical" ? GRID_WIDTH : GRID_HEIGHT) })} /><b>格</b></div>
+                <div className="axis-center-note">
+                  <span className="axis-center-icon">│</span>
+                  {transform.axis === "vertical" ? "竖轴在第 12 格" : "横轴在第 8 格"}
                 </div>
-                <button className={`pick-point-button ${pointPickMode === "axis" ? "is-picking" : ""}`} onClick={() => setPointPickMode(pointPickMode === "axis" ? null : "axis")}>
-                  <span>⌁</span>
-                  {pointPickMode === "axis" ? "请在格子图上点对称轴" : `当前是第 ${transform.offset} 格${transform.axis === "vertical" ? "竖" : "横"}轴`}
-                </button>
+                <label className="symmetry-toggle">
+                  <span>
+                    <strong>显示对称图形</strong>
+                    <small>关闭后只保留原图，方便观察轨迹</small>
+                  </span>
+                  <input type="checkbox" checked={showSymmetry} onChange={(event) => setShowSymmetry(event.target.checked)} />
+                  <span className="toggle-track" aria-hidden="true"><span /></span>
+                </label>
+                <p className="reflect-help">在对称轴左/右或上/下的一侧画图，另一侧会同步出现镜像。</p>
               </div>
             )}
 
