@@ -112,7 +112,7 @@ const TASKS: TaskPreset[] = [
   {
     id: "house-mirror",
     title: "房子的镜子朋友",
-    detail: "关于第 16 格竖轴对称",
+    detail: "关于中间竖轴对称",
     emoji: "🏠",
     shape: PRESETS[4],
     transform: { type: "reflect", axis: "vertical", offset: GRID_WIDTH / 2 },
@@ -778,7 +778,7 @@ function App() {
                   <button className={transform.axis === "horizontal" ? "is-selected" : ""} onClick={() => updateTransform({ ...transform, axis: "horizontal", offset: GRID_HEIGHT / 2 })}>↔ 中间横轴</button>
                 </div>
                 <div className="axis-center-note">
-                  <span className="axis-center-icon">│</span>
+                  <span className="axis-center-icon">{transform.axis === "vertical" ? "│" : "─"}</span>
                   {transform.axis === "vertical" ? "竖轴在第 12 格" : "横轴在第 8 格"}
                 </div>
                 <label className="symmetry-toggle">
