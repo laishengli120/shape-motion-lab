@@ -135,7 +135,7 @@ function createOperationTransform(nextOperation: Operation, points: Point[]): Tr
   }
 
   if (nextOperation === "rotate") {
-    return { type: "rotate", angle: 0, direction: "clockwise", pivot: points[0] }
+    return { type: "rotate", angle: 0, direction: "clockwise", pivot: points[0] ?? { x: GRID_WIDTH / 2, y: GRID_HEIGHT / 2 } }
   }
 
   return { type: "reflect", axis: "vertical", offset: GRID_WIDTH / 2 }
@@ -206,6 +206,7 @@ function App() {
   >(null)
 
   const [shape, setShape] = useState<Shape>(PRESETS[3])
+  const [drawnShapes, setDrawnShapes] = useState<Shape[]>([])
   const [selectedShapeId, setSelectedShapeId] = useState(PRESETS[3].id)
   const [operation, setOperation] = useState<Operation>("translate")
   const [operationBasePoints, setOperationBasePoints] = useState<Point[]>(PRESETS[3].points)
@@ -287,11 +288,12 @@ function App() {
     }
 
     const customShape: Shape = {
-      id: "custom",
-      name: "我的图形",
+      id: crypto.randomUUID(),
+      name: `我的图形 ${drawnShapes.length + 1}`,
       color: "#8066d9",
       points,
     }
+    setDrawnShapes((items) => [...items, customShape])
     setShape(customShape)
     setSelectedShapeId(customShape.id)
     setDrawingPoints(points)
@@ -464,6 +466,36 @@ function App() {
     setNotice("已经回到原来的位置")
   }
 
+  function handleDeleteShape(shapeId: string) {
+    setDrawnShapes((items) => items.filter((item) => item.id !== shapeId))
+    if (shape.id === shapeId) {
+      setShape({ id: "empty", name: "还没有图形", color: "#8066d9", points: [] })
+      setSelectedShapeId("")
+      setOperationBasePoints([])
+      setTransform(createDefaultTransform())
+      setOperation("translate")
+      setHistory([])
+      setIsDrawing(false)
+      setDrawingPoints([])
+      setPointPickMode(null)
+    }
+    setNotice("图形已删除")
+  }
+
+  function handleClearAllShapes() {
+    setDrawnShapes([])
+    setShape({ id: "empty", name: "还没有图形", color: "#8066d9", points: [] })
+    setSelectedShapeId("")
+    setOperationBasePoints([])
+    setTransform(createDefaultTransform())
+    setOperation("translate")
+    setHistory([])
+    setIsDrawing(false)
+    setDrawingPoints([])
+    setPointPickMode(null)
+    setNotice("所有图案已清空，可以重新开始")
+  }
+
   function handleNewExercise() {
     setShape(PRESETS[3])
     setSelectedShapeId(PRESETS[3].id)
@@ -565,6 +597,27 @@ function App() {
               </span>
               <span className="chevron">›</span>
             </button>
+            {drawnShapes.length > 0 && (
+              <div className="drawn-shapes-panel">
+                <div className="drawn-shapes-heading">
+                  <strong>已画图案</strong>
+                  <span>{drawnShapes.length} 个</span>
+                </div>
+                <div className="drawn-shape-list">
+                  {drawnShapes.map((drawnShape) => (
+                    <div className={`drawn-shape-row ${selectedShapeId === drawnShape.id ? "is-current" : ""}`} key={drawnShape.id}>
+                      <span className="drawn-shape-swatch" style={{ backgroundColor: drawnShape.color }} />
+                      <span className="drawn-shape-name">{drawnShape.name}</span>
+                      <button className="delete-shape-button" aria-label={`删除${drawnShape.name}`} onClick={() => handleDeleteShape(drawnShape.id)}>删除</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button className="clear-shapes-button" onClick={handleClearAllShapes} disabled={shape.points.length === 0 && drawnShapes.length === 0}>
+              <span aria-hidden="true">⌫</span>
+              一键清空所有图案
+            </button>
           </section>
 
         </aside>
@@ -614,7 +667,12 @@ function App() {
                 <text x="23.3" y="15.2">x</text>
               </g>
 
-              {!isDrawing && (
+              {drawnShapes
+                .filter((drawnShape) => isDrawing || drawnShape.id !== shape.id)
+                .map((drawnShape) => (
+                  <polygon className="saved-shape" key={drawnShape.id} points={pointsToString(drawnShape.points)} fill={drawnShape.color} />
+                ))}
+              {!isDrawing && shape.points.length > 0 && (
                 <>
                   <polygon className="original-shape" points={pointsToString(shape.points)} />
                   {(operation !== "reflect" || showSymmetry) && (
